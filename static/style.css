@@ -1,0 +1,48 @@
+body{
+    background: #f4f7fc;
+    font-family: 'Segoe UI', sans-serif;
+}
+
+.main-title{
+    font-size: 50px;
+    font-weight: bold;
+    color: #0d6efd;
+}
+
+.subtitle{
+    color: gray;
+    font-size: 18px;
+}
+
+.queue-card{
+    border: none;
+    border-radius: 25px;
+    background: linear-gradient(135deg, #0d6efd, #00b4ff);
+    color: white;
+}
+
+.queue-number{
+    font-size: 90px;
+    font-weight: bold;
+}
+
+.card{
+    border: none;
+    border-radius: 20px;
+}
+
+.form-control{
+    border-radius: 12px;
+    padding: 15px;
+}
+
+.btn{
+    border-radius: 12px;
+    padding: 12px;
+    font-weight: bold;
+}
+
+.table{
+    border-radius: 20px;
+    overflow: hidden;
+}
