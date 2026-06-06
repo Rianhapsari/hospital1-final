@@ -1,100 +1,250 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RS Sehat Sentosa</title>
-
-    <!-- Bootstrap -->
+    <title>RS Sehat Sentosa - Sistem Antrian Digital</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- CSS -->
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .clinic-card {
+            border: none;
+            border-top: 5px solid;
+            transition: transform 0.2s;
+        }
+        .clinic-card:hover {
+            transform: translateY(-3px);
+        }
+        .bg-empty {
+            background-color: #f1f3f5;
+            border-radius: 8px;
+            font-style: italic;
+        }
+    </style>
 </head>
 <body>
 
 <div class="container py-5">
 
     <div class="text-center mb-5">
-        <h1 class="main-title">
-            🏥 RS Sehat Sentosa
-        </h1>
-
-        <p class="subtitle">
-            Sistem Antrian Digital Rumah Sakit
-        </p>
+        <h1 class="display-4 fw-bold text-dark mb-2">🏥 RS Sehat Sentosa</h1>
+        <p class="lead text-muted fw-normal">Sistem Antrian Digital Poliklinik & Farmasi</p>
+        <hr class="mx-auto text-secondary opacity-25" style="width: 100px; height: 3px;">
     </div>
 
-    <!-- CURRENT QUEUE -->
-    <div class="card queue-card shadow-lg mb-5">
-        <div class="card-body text-center">
-
-            <h4 class="mb-3">
-                Antrian Sedang Dipanggil
-            </h4>
-
-            {% if current %}
-                <div class="queue-number">
-                    A-{{ current[0] }}
+    <div class="row g-4 mb-5">
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 border-start border-success border-4 rounded-3">
+                <div class="card-body d-flex flex-column justify-content-center p-4">
+                    <h5 class="text-muted fw-semibold mb-2">📋 Total Antrian Menunggu</h5>
+                    <div class="display-4 fw-black text-success">
+                        {{ total_waiting }} <span class="fs-4 text-muted fw-normal">Pasien</span>
+                    </div>
                 </div>
-
-                <h5 class="mt-3">
-                    {{ current[1] }}
-                </h5>
-            {% else %}
-                <h3>Belum ada antrian</h3>
-            {% endif %}
-
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100 shadow-sm border-0 border-start border-primary border-4 rounded-3">
+                <div class="card-body d-flex flex-column justify-content-center p-4">
+                    <h5 class="text-muted fw-semibold mb-2">🕒 Waktu Operasional</h5>
+                    <div id="liveClock" class="fw-bold text-primary" style="font-size: 24px; line-height: 1.4;"></div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- FORM -->
-    <div class="card shadow-lg">
-        <div class="card-body p-5">
+    <div class="d-flex align-items-center mb-4">
+        <h3 class="fw-bold text-dark mb-0">📢 Antrian Sedang Dipanggil</h3>
+        <div class="flex-grow-1 ms-3 bg-secondary opacity-25" style="height: 1px;"></div>
+    </div>
 
-            <h3 class="mb-4 text-center">
-                Ambil Nomor Antrian
-            </h3>
+    <div class="row g-4 mb-4">
 
+        <div class="col-md-4">
+            <div class="card clinic-card shadow-sm h-100 border-primary rounded-3">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <h5 class="card-title text-primary fw-bold mb-3">🩺 Dokter Umum</h5>
+                        {% if queue_data["Dokter Umum"]["called"] %} 
+                            <div class="display-4 fw-extrabold text-primary my-3">
+                                {{ prefixes | default('U', true) }}-{{ queue_data["Dokter Umum"]["called"][0] }}
+                            </div>
+                            <p class="fs-5 fw-semibold text-dark mb-0 bg-light py-2 rounded">
+                                {{ queue_data["Dokter Umum"]["called"][1] }}
+                            </p>
+                        {% else %}
+                            <div class="text-muted bg-empty my-4 py-3">Tidak ada panggilan</div>
+                        {% endif %}
+                    </div>
+                    <div class="border-top mt-4 pt-3 text-muted fs-6">
+                        Nomor Terakhir: <strong class="text-dark">{{ prefixes | default('U', true) }}-{{ queue_data["Dokter Umum"]["last"] }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card clinic-card shadow-sm h-100 border-success rounded-3">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <h5 class="card-title text-success fw-bold mb-3">🦷 Dokter Gigi</h5>
+                        {% if queue_data["Dokter Gigi"]["called"] %}
+                            <div class="display-4 fw-extrabold text-success my-3">
+                                {{ prefixes | default('G', true) }}-{{ queue_data["Dokter Gigi"]["called"][0] }}
+                            </div>
+                            <p class="fs-5 fw-semibold text-dark mb-0 bg-light py-2 rounded">
+                                {{ queue_data["Dokter Gigi"]["called"][1] }}
+                            </p>
+                        {% else %}
+                            <div class="text-muted bg-empty my-4 py-3">Tidak ada panggilan</div>
+                        {% endif %}
+                    </div>
+                    <div class="border-top mt-4 pt-3 text-muted fs-6">
+                        Nomor Terakhir: <strong class="text-dark">{{ prefixes | default('G', true) }}-{{ queue_data["Dokter Gigi"]["last"] }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card clinic-card shadow-sm h-100 border-danger rounded-3">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <h5 class="card-title text-danger fw-bold mb-3">🤰 Obgyn</h5>
+                        {% if queue_data["Obgyn"]["called"] %}
+                            <div class="display-4 fw-extrabold text-danger my-3">
+                                {{ queue_prefix | default('O', true) }}-{{ queue_data["Obgyn"]["called"][0] }}
+                            </div>
+                            <p class="fs-5 fw-semibold text-dark mb-0 bg-light py-2 rounded">
+                                {{ queue_data["Obgyn"]["called"][1] }}
+                            </p>
+                        {% else %}
+                            <div class="text-muted bg-empty my-4 py-3">Tidak ada panggilan</div>
+                        {% endif %}
+                    </div>
+                    <div class="border-top mt-4 pt-3 text-muted fs-6">
+                        Nomor Terakhir: <strong class="text-dark">{{ queue_prefix | default('O', true) }}-{{ queue_data["Obgyn"]["last"] }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="row g-4 mb-5">
+
+        <div class="col-md-6">
+            <div class="card clinic-card shadow-sm h-100 border-warning rounded-3">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <h5 class="card-title text-warning fw-bold mb-3">💊 Farmasi / Apotek</h5>
+                        {% if queue_data["Farmasi"]["called"] %}
+                            <div class="display-4 fw-extrabold text-warning my-3">
+                                {{ prefixes | default('F', true) }}-{{ queue_data["Farmasi"]["called"][0] }}
+                            </div>
+                            <p class="fs-5 fw-semibold text-dark mb-0 bg-light py-2 rounded">
+                                {{ queue_data["Farmasi"]["called"][1] }}
+                            </p>
+                        {% else %}
+                            <div class="text-muted bg-empty my-4 py-3">Tidak ada panggilan</div>
+                        {% endif %}
+                    </div>
+                    <div class="border-top mt-4 pt-3 text-muted fs-6">
+                        Nomor Terakhir: <strong class="text-dark">{{ prefixes | default('F', true) }}-{{ queue_data["Farmasi"]["last"] }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6">
+            <div class="card clinic-card shadow-sm h-100 border-dark rounded-3">
+                <div class="card-body d-flex flex-column justify-content-between p-4">
+                    <div>
+                        <h5 class="card-title text-dark fw-bold mb-3">🏥 Bedah Umum</h5>
+                        {% if queue_data["Bedah Umum"]["called"] %}
+                            <div class="display-4 fw-extrabold text-dark my-3">
+                                {{ prefixes | default('B', true) }}-{{ queue_data["Bedah Umum"]["called"][0] }}
+                            </div>
+                            <p class="fs-5 fw-semibold text-dark mb-0 bg-light py-2 rounded">
+                                {{ queue_data["Bedah Umum"]["called"][1] }}
+                            </p>
+                        {% else %}
+                            <div class="text-muted bg-empty my-4 py-3">Tidak ada panggilan</div>
+                        {% endif %}
+                    </div>
+                    <div class="border-top mt-4 pt-3 text-muted fs-6">
+                        Nomor Terakhir: <strong class="text-dark">{{ prefixes | default('B', true) }}-{{ queue_data["Bedah Umum"]["last"] }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="card shadow-lg border-0 rounded-4 overflow-hidden mb-5">
+        <div class="card-header bg-primary py-3 text-center">
+            <h4 class="text-white mb-0 fw-semibold">🎫 Mesin Cetak Mandiri Nomor Antrian</h4>
+        </div>
+        <div class="card-body p-5 bg-white">
             <form method="POST" action="/take">
-
                 <div class="mb-4">
-                    <input
-                        type="text"
-                        class="form-control form-control-lg"
-                        name="patient_name"
-                        placeholder="Masukkan Nama Pasien"
-                        required
-                    >
+                    <label class="form-label fw-bold text-secondary">Nama Lengkap Pasien</label>
+                    <input type="text" class="form-control form-control-lg border-2" placeholder="Masukkan nama sesuai KTP/BPJS" name="patient_name" required>
                 </div>
-
-                <div class="d-grid">
-                    <button class="btn btn-primary btn-lg">
-                        Ambil Antrian
-                    </button>
+                <div class="mb-4">
+                    <label class="form-label fw-bold text-secondary">Tujuan Poliklinik / Spesialis</label>
+                    <select class="form-select form-select-lg border-2" name="category" required>
+                        <option value="" selected disabled>-- Pilih Poliklinik Tujuan --</option>
+                        <option value="Dokter Umum">Dokter Umum</option>
+                        <option value="Dokter Gigi">Dokter Gigi</option>
+                        <option value="Obgyn">Obgyn (Kandungan)</option>
+                        <option value="Farmasi">Farmasi (Ambil Obat)</option>
+                        <option value="Bedah Umum">Bedah Umum</option>
+                    </select>
                 </div>
-
+                <div class="d-grid gap-2 pt-2">
+                    <button class="btn btn-primary btn-lg fw-bold shadow-sm py-3">Cetak Nomor Antrian Sekarang</button>
+                </div>
             </form>
-
         </div>
     </div>
 
-    <div class="text-center mt-4">
-        <h5>
-            Nomor Terakhir:
-            <span class="badge bg-success">
-                A-{{ last_queue }}
-            </span>
-        </h5>
-    </div>
-
-    <div class="text-center mt-4">
-        <a href="/admin" class="btn btn-dark">
-            Masuk Dashboard Admin
-        </a>
+    <div class="row align-items-center bg-light rounded-3 p-3 mx-1 shadow-sm">
+        <div class="col-md-6 text-center text-md-start mb-2 mb-md-0">
+            <h6 class="mb-0 text-muted">
+                Sistem Terkini: Tiket Terakhir Dikeluarkan <span class="badge bg-success fs-6 ms-1"> {{ last_queue }}</span>
+            </h6>
+        </div>
+        <div class="col-md-6 text-center text-md-end">
+            <a href="/admin" class="btn btn-sm btn-outline-dark fw-medium px-3">
+                ⚙️ Login Admin Rumah Sakit
+            </a>
+        </div>
     </div>
 
 </div>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+<script>
+const socket = io();
+
+socket.on("queue_updated", function(data){
+    location.reload();
+});
+
+function updateClock() {
+    const now = new Date();
+    const waktu = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const tanggal = now.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    document.getElementById("liveClock").innerHTML = `<span class="fs-4">${waktu}</span><br><small class="text-muted fw-normal" style="font-size:14px;">${tanggal}</small>`;
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+</script>
 
 </body>
 </html>
