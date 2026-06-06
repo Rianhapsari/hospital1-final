@@ -1,15 +1,14 @@
 from flask import Flask, render_template, request, redirect, session
 from flask_socketio import SocketIO
-import sqlite3
 from datetime import datetime
 import os
+import urllib.parse as urlparse
+import pymysql # Menggunakan PyMySQL untuk koneksi ke MySQL
 
 app = Flask(__name__)
-# Memastikan secret key terdaftar secara absolut untuk mengaktifkan Flask Session
 app.config['SECRET_KEY'] = "hospital126_admin_secret_key"
 socketio = SocketIO(app)
 
-DB_NAME = "queue.db"
 DOCTORS = {
     "Dokter Umum": "dr. Andi Pratama",
     "Dokter Gigi": "drg. Anita Putri",
@@ -26,42 +25,62 @@ PREFIX = {
     "Bedah Umum": "B"
 }
 
+# Fungsi untuk membedah URL MySQL Aiven dan melakukan koneksi
+def get_db_connection():
+    DATABASE_URL = os.environ.get('DATABASE_URL')
+    
+    # Membedah url mysql://avnadmin:...
+    url = urlparse.urlparse(DATABASE_URL)
+    
+    conn = pymysql.connect(
+        host=url.hostname,
+        user=url.username,
+        password=url.password,
+        database=url.path[1:], # Menghapus tanda '/' di awal nama database
+        port=url.port,
+        ssl={'ssl': {}} # Aiven MySQL mewajibkan koneksi SSL aman
+    )
+    return conn
+
 def init_db():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
     
-    # TABEL ANTRIAN
+    # TABEL ANTRIAN (Menggunakan AUTO_INCREMENT khas MySQL)
     c.execute("""
     CREATE TABLE IF NOT EXISTS queue (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        patient_name TEXT NOT NULL,
-        category TEXT NOT NULL,
-        queue_number INTEGER NOT NULL,
-        status TEXT DEFAULT 'waiting',
-        created_at TEXT
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        patient_name VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        queue_number INT NOT NULL,
+        status VARCHAR(50) DEFAULT 'waiting',
+        created_at VARCHAR(100)
     )
     """)
 
     # TABEL ADMIN
     c.execute("""
     CREATE TABLE IF NOT EXISTS admin (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE,
-        password TEXT
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(100) UNIQUE,
+        password VARCHAR(255)
     )
     """)
+    conn.commit()
 
-    # Bersihkan spasi dan cek ketersediaan akun admin default
-    c.execute("SELECT * FROM admin WHERE TRIM(username)=?", ("hospital1",))
+    # Cek admin default menggunakan placeholder %s
+    c.execute("SELECT * FROM admin WHERE TRIM(username)=%s", ("hospital1",))
     if not c.fetchone():
         c.execute("""
         INSERT INTO admin (username, password)
-        VALUES (?, ?)
+        VALUES (%s, %s)
         """, ("hospital1", "hospital126#"))
         conn.commit()
+        
+    c.close()
     conn.close()
 
-# Jalankan init database
+# Jalankan inisialisasi database saat aplikasi dinyalakan
 init_db()
 
 # =========================
@@ -69,7 +88,7 @@ init_db()
 # =========================
 @app.route("/")
 def home():
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
 
     categories = ["Dokter Umum", "Dokter Gigi", "Obgyn", "Farmasi", "Bedah Umum"]
@@ -79,12 +98,12 @@ def home():
         c.execute("""
         SELECT queue_number, patient_name
         FROM queue
-        WHERE category=? AND status='called'
+        WHERE category=%s AND status='called'
         ORDER BY id DESC LIMIT 1
         """, (category,))
         called = c.fetchone()
 
-        c.execute("SELECT MAX(queue_number) FROM queue WHERE category=?", (category,))
+        c.execute("SELECT MAX(queue_number) FROM queue WHERE category=%s", (category,))
         last = c.fetchone()[0]
         if last is None:
             last = 0
@@ -102,6 +121,7 @@ def home():
     if last_queue is None:
         last_queue = 0
 
+    c.close()
     conn.close()
     return render_template(
         "index.html",
@@ -120,7 +140,7 @@ def take_queue():
     doctor_name = DOCTORS.get(category)
     prefix = PREFIX.get(category)
 
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
 
     c.execute("SELECT MAX(queue_number) FROM queue")
@@ -133,10 +153,11 @@ def take_queue():
 
     c.execute("""
     INSERT INTO queue (patient_name, category, queue_number, created_at)
-    VALUES (?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s)
     """, (patient_name, category, new_queue, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
 
     conn.commit()
+    c.close()
     conn.close()
 
     return render_template(
@@ -155,18 +176,18 @@ def take_queue():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        # Ambil input dan bersihkan spasi yang tidak sengaja terketik
         username = request.form["username"].strip()
         password = request.form["password"].strip()
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM admin WHERE username=? AND password=?", (username, password))
+        c.execute("SELECT * FROM admin WHERE username=%s AND password=%s", (username, password))
         admin_account = c.fetchone()
+        c.close()
         conn.close()
 
         if admin_account:
-            session.clear() # Reset session lama untuk keamanan
+            session.clear() 
             session["admin"] = username
             return redirect("/admin")
         else:
@@ -187,10 +208,11 @@ def admin():
     if "admin" not in session:
         return redirect("/login")
         
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT * FROM queue ORDER BY queue_number ASC")
     queues = c.fetchall()
+    c.close()
     conn.close()
 
     return render_template("admin.html", queues=queues)
@@ -200,10 +222,11 @@ def done_queue(id):
     if "admin" not in session:
         return redirect("/login")
         
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute("DELETE FROM queue WHERE id=?", (id,))
+    c.execute("DELETE FROM queue WHERE id=%s", (id,))
     conn.commit()
+    c.close()
     conn.close()
     return redirect("/admin")
 
@@ -212,12 +235,13 @@ def call_queue(id):
     if "admin" not in session:
         return redirect("/login")
         
-    conn = sqlite3.connect(DB_NAME)
+    conn = get_db_connection()
     c = conn.cursor()
-    c.execute("UPDATE queue SET status='called' WHERE id=?", (id,))
+    c.execute("UPDATE queue SET status='called' WHERE id=%s", (id,))
     conn.commit()
 
     socketio.emit("queue_updated", {"message": "refresh"})
+    c.close()
     conn.close()
     return redirect("/admin")
 
